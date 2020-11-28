@@ -51,9 +51,8 @@ async def root():
                 if k == 'Linear':
                     return LinearKernel()
 
-            def _get_tail(self, t=None):
-                if t is None:
-
+        def _get_tail(self, t=None):
+            if t is None:
                 if (self.rbf['tail'] == 'Linear' or self.rbf['kernel'] is not 'Linear'):
                     return LinearTail(self.dim)
                 if (self.rbf['tail'] == 'Constant'):
@@ -62,57 +61,55 @@ async def root():
                     if t == 'Linear' or self.rbf['kernel'] is not 'Linear':
                         return LinearTail(self.dim)
                     if t == 'Constant':
-                    return ConstantTail(self.dim)
+                        return ConstantTail(self.dim)
 
+        def create_train_test_split(self):
+            for i in range(self.surmod_count):
+                X_train, X_test, y_train, y_test = train_test_split(self.data[self.meta['designParam']].values,
+                        self.data[self.meta['kpis'][i]].values, random_state=0,
+                            test_size=self.split)
 
-            def create_train_test_split(self):
-                for i in range(self.surmod_count):
-                    X_train, X_test, y_train, y_test = train_test_split(self.data[self.meta['designParam']].values,
-                                                            self.data[self.meta['kpis'][i]].values, random_state=0,
-                                                            test_size=self.split)
+                self.train_data[self.meta['kpis'][i]] = {'X': X_train, 'Y': y_train}
+                self.test_data[self.meta['kpis'][i]] = {'X': X_test, 'Y': y_test}
 
-                    self.train_data[self.meta['kpis'][i]] = {'X': X_train, 'Y': y_train}
-                    self.test_data[self.meta['kpis'][i]] = {'X': X_test, 'Y': y_test
-
-            def create_RBFsurrogate(self, surrogateKey, rbf=None):
-                # Prepare Boundary Array
-                for i in range(self.dim):
-                    self._ub_X[0][i] = self.data[self.meta['designParam'][i]].max()
-                    self._lb_X[0][i] = self.data[self.meta['designParam'][i]].min()
-                if rbf is not None:
-                    kernel = self._get_kernel(rbf['kernel'])
-                    tail = self._get_tail(rbf['kernel'])
-                    eta = rbf['eta']
-                else:
-                    kernel = self._get_kernel()
-                    tail = self._get_tail()
-                    eta = self.rbf['eta']
-                try:
-                    self.surrogateModels[surrogateKey] = RBFInterpolant(dim=self.dim, kernel=kernel, tail=tail, eta=eta,
+        def create_RBFsurrogate(self, surrogateKey, rbf=None):
+            # Prepare Boundary Array
+            for i in range(self.dim):
+                self._ub_X[0][i] = self.data[self.meta['designParam'][i]].max()
+                self._lb_X[0][i] = self.data[self.meta['designParam'][i]].min()
+            if rbf is not None:
+                kernel = self._get_kernel(rbf['kernel'])
+                tail = self._get_tail(rbf['kernel'])
+                eta = rbf['eta']
+            else:
+                kernel = self._get_kernel()
+                tail = self._get_tail()
+                eta = self.rbf['eta']
+            try:
+                self.surrogateModels[surrogateKey] = RBFInterpolant(dim=self.dim, kernel=kernel, tail=tail, eta=eta,
                                                                         lb=self._lb_X, ub=self._ub_X)
-                except KeyError:
-                    raise KeyError('Could not find provided key in the meta data')
+            except KeyError:
+                raise KeyError('Could not find provided key in the meta data')
 
-    def train_surrogate(self, surrogateKey):
-        self.surrogateModels[surrogateKey].add_points(self.train_data[surrogateKey]['X'],
-                                                      self.train_data[surrogateKey]['Y'])
+        def train_surrogate(self, surrogateKey):
+            self.surrogateModels[surrogateKey].add_points(self.train_data[surrogateKey]['X'],
+            self.train_data[surrogateKey]['Y'])
 
-    def reset_surrogate(self, surrogateKey):
+        def reset_surrogate(self, surrogateKey):
+            self.surrogateModels[surrogateKey].reset()
 
-        self.surrogateModels[surrogateKey].reset()
+        def predict(self, surrogateKey, x):
+            return self.surrogateModels[surrogateKey].predict(x)[0][0]
 
-    def predict(self, surrogateKey, x):
-        return self.surrogateModels[surrogateKey].predict(x)[0][0]
-
-    def get_determination_coeff(self, surrogateKey, y_test=None, prnt=True):
-        if y_test == None:
-            y_r2 = self.surrogateModels[surrogateKey].predict(self.test_data[surrogateKey]['X'])
-        else:
-            y_r2 = y_test
-            r = r2_score(self.test_data[surrogateKey]['Y'], y_r2)
-        if prnt == True:
-            print('R²: {}'.format(r))
-        return r
+        def get_determination_coeff(self, surrogateKey, y_test=None, prnt=True):
+            if y_test == None:
+                y_r2 = self.surrogateModels[surrogateKey].predict(self.test_data[surrogateKey]['X'])
+            else:
+                y_r2 = y_test
+                r = r2_score(self.test_data[surrogateKey]['Y'], y_r2)
+            if prnt == True:
+               print('R²: {}'.format(r))
+            return r
 
     class Predictor():
         def __init__(self, xlsx_path):
@@ -144,3 +141,5 @@ async def root():
         p = Predictor('data.xlsx')
         p.train_model()
         input_vals = np.array([8.4, 28., 5.3, 0.7])
+
+    return json.dumps(p.predict(input_vals))
